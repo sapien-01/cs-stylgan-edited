@@ -130,14 +130,16 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
 
     save_dir = "expr"
     os.makedirs(save_dir, 0o777, exist_ok=True)
-    os.makedirs(save_dir + "/checkpoints", 0o777, exist_ok=True)
+    os.maktrain_file_contenedirs(save_dir + "/checkpoints", 0o777, exist_ok=True)
 
     loader = sample_data(loader)
 
-    pbar = range(args.iter)
+    num_iterations = int(args.iter)
+#     pbar = tqdm(total=num_iterations, desc="Training Progress", leave=True)
+#     pbar = tqdm(total=num_iterations, leave=True, smoothing=0.01)
 
-    if get_rank() == 0:
-        pbar = tqdm(pbar, initial=args.start_iter, dynamic_ncols=True, smoothing=0.01)
+#     if get_rank() == 0:
+#         pbar = tqdm(pbar, initial=args.start_iter, dynamic_ncols=True, smoothing=0.01)
 
     mean_path_length = 0
 
@@ -165,301 +167,335 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
         ada_augment = AdaptiveAugment(args.ada_target, args.ada_length, 8, device)
 
     sample_z = torch.randn(args.n_sample, args.latent, device=device)
+    
+    
+    with tqdm(total=num_iterations, desc="Training Progress") as pbar:
+        for idx in range(num_iterations):
+            i = idx + args.start_iter
 
-    for idx in pbar:
-        i = idx + args.start_iter
+            if i > args.iter:
+                print("Done!")
 
-        if i > args.iter:
-            print("Done!")
+                break
 
-            break
-
-        real_img = next(loader)
-        real_img = real_img.to(device)
-
-
-        requires_grad(generator, False)
-        requires_grad(discriminator, False)
-
-        #-------------------------
-        # Update Discriminator
-        #-------------------------
+            real_img = next(loader)
+            real_img = real_img.to(device)
 
 
-        # Freeze !!!
-        if args.freezeG > 0 and args.freezeD > 0:
-            # G
-            for layer in range(args.freezeG):
-                requires_grad(generator, False, target_layer=f'convs.{generator.num_layers-2-2*layer}')
-                requires_grad(generator, False, target_layer=f'convs.{generator.num_layers-3-2*layer}')
-                requires_grad(generator, False, target_layer=f'to_rgbs.{generator.log_size-3-layer}')
-            # D
-            for layer in range(args.freezeD):
-                requires_grad(discriminator, True, target_layer=f'convs.{discriminator.log_size-2-layer}')
-            requires_grad(discriminator, True, target_layer=f'final_') #final_conv, final_linear
-
-        elif args.freezeG > 0 :
-            # G
-            for layer in range(args.freezeG):
-                requires_grad(generator, False, target_layer=f'convs.{generator.num_layers-2-2*layer}')
-                requires_grad(generator, False, target_layer=f'convs.{generator.num_layers-3-2*layer}')
-                requires_grad(generator, False, target_layer=f'to_rgbs.{generator.log_size-3-layer}')
-            # D
-            requires_grad(discriminator, True)
-
-        elif args.freezeD > 0 :
-            # G
             requires_grad(generator, False)
-            # D
-            for layer in range(args.freezeD):
-                requires_grad(discriminator, True, target_layer=f'convs.{discriminator.log_size-2-layer}')
-            requires_grad(discriminator, True, target_layer=f'final_') #final_conv, final_linear
+            requires_grad(discriminator, False)
 
-        else :
-            # G
-            requires_grad(generator, False)
-            # D
-            requires_grad(discriminator, True)
-
-        #--------------------------
-
-        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-
-        if args.freezeStyle >= 0:            
-            _, latent = generator_source(noise, return_latents=True)
-            fake_img, _ = generator(noise, inject_index=args.freezeStyle, put_latent = latent)
-        elif args.freezeFC:      
-            _, latent = generator_source(noise, return_latents=True)
-            fake_img, _ = generator(noise, freezeFC = latent)           
-        else:
-            fake_img, _ = generator(noise)
+            #-------------------------
+            # Update Discriminator
+            #-------------------------
 
 
+            # Freeze !!!
+            if args.freezeG > 0 and args.freezeD > 0:
+                # G
+                for layer in range(args.freezeG):
+                    requires_grad(generator, False, target_layer=f'convs.{generator.num_layers-2-2*layer}')
+                    requires_grad(generator, False, target_layer=f'convs.{generator.num_layers-3-2*layer}')
+                    requires_grad(generator, False, target_layer=f'to_rgbs.{generator.log_size-3-layer}')
+                # D
+                for layer in range(args.freezeD):
+                    requires_grad(discriminator, True, target_layer=f'convs.{discriminator.log_size-2-layer}')
+                requires_grad(discriminator, True, target_layer=f'final_') #final_conv, final_linear
 
-        if args.augment:
-            real_img_aug, _ = augment(real_img, ada_aug_p)
-            fake_img, _ = augment(fake_img, ada_aug_p)
+            elif args.freezeG > 0 :
+                # G
+                for layer in range(args.freezeG):
+                    requires_grad(generator, False, target_layer=f'convs.{generator.num_layers-2-2*layer}')
+                    requires_grad(generator, False, target_layer=f'convs.{generator.num_layers-3-2*layer}')
+                    requires_grad(generator, False, target_layer=f'to_rgbs.{generator.log_size-3-layer}')
+                # D
+                requires_grad(discriminator, True)
 
-        else:
-            real_img_aug = real_img
+            elif args.freezeD > 0 :
+                # G
+                requires_grad(generator, False)
+                # D
+                for layer in range(args.freezeD):
+                    requires_grad(discriminator, True, target_layer=f'convs.{discriminator.log_size-2-layer}')
+                requires_grad(discriminator, True, target_layer=f'final_') #final_conv, final_linear
 
-        fake_pred = discriminator(fake_img)
-        real_pred = discriminator(real_img_aug)
-        d_loss = d_logistic_loss(real_pred, fake_pred)
+            else :
+                # G
+                requires_grad(generator, False)
+                # D
+                requires_grad(discriminator, True)
 
-        loss_dict["d"] = d_loss
-        loss_dict["real_score"] = real_pred.mean()
-        loss_dict["fake_score"] = fake_pred.mean()
+            #--------------------------
 
-        discriminator.zero_grad()
-        d_loss.backward()
-        d_optim.step()
+            noise = mixing_noise(args.batch, args.latent, args.mixing, device)
 
-        if args.augment and args.augment_p == 0:
-            ada_aug_p = ada_augment.tune(real_pred)
-            r_t_stat = ada_augment.r_t_stat
+            if args.freezeStyle >= 0:            
+                _, latent = generator_source(noise, return_latents=True)
+                fake_img, _ = generator(noise, inject_index=args.freezeStyle, put_latent = latent)
+            elif args.freezeFC:      
+                _, latent = generator_source(noise, return_latents=True)
+                fake_img, _ = generator(noise, freezeFC = latent)           
+            else:
+                fake_img, _ = generator(noise)
 
-        d_regularize = i % args.d_reg_every == 0
 
-        if d_regularize:
-            real_img.requires_grad = True
 
             if args.augment:
                 real_img_aug, _ = augment(real_img, ada_aug_p)
+                fake_img, _ = augment(fake_img, ada_aug_p)
 
             else:
                 real_img_aug = real_img
 
+            fake_pred = discriminator(fake_img)
             real_pred = discriminator(real_img_aug)
-            r1_loss = d_r1_loss(real_pred, real_img)
+            d_loss = d_logistic_loss(real_pred, fake_pred)
+
+            loss_dict["d"] = d_loss
+            loss_dict["real_score"] = real_pred.mean()
+            loss_dict["fake_score"] = fake_pred.mean()
 
             discriminator.zero_grad()
-            (args.r1 / 2 * r1_loss * args.d_reg_every + 0 * real_pred[0]).backward()
-
+            d_loss.backward()
             d_optim.step()
 
-        loss_dict["r1"] = r1_loss
+            if args.augment and args.augment_p == 0:
+                ada_aug_p = ada_augment.tune(real_pred)
+                r_t_stat = ada_augment.r_t_stat
+
+            d_regularize = i % args.d_reg_every == 0
+
+            if d_regularize:
+                real_img.requires_grad = True
+
+                if args.augment:
+                    real_img_aug, _ = augment(real_img, ada_aug_p)
+
+                else:
+                    real_img_aug = real_img
+
+                real_pred = discriminator(real_img_aug)
+                r1_loss = d_r1_loss(real_pred, real_img)
+
+                discriminator.zero_grad()
+                (args.r1 / 2 * r1_loss * args.d_reg_every + 0 * real_pred[0]).backward()
+
+                d_optim.step()
+
+            loss_dict["r1"] = r1_loss
 
 
-        #-------------------------
-        # Update Generator
-        #-------------------------
-        
-        # Freeze !!!
-        if args.freezeG > 0 and args.freezeD > 0:
-            # G
-            for layer in range(args.freezeG):
-                requires_grad(generator, True, target_layer=f'convs.{generator.num_layers-2-2*layer}')
-                requires_grad(generator, True, target_layer=f'convs.{generator.num_layers-3-2*layer}')
-                requires_grad(generator, True, target_layer=f'to_rgbs.{generator.log_size-3-layer}')
-            # D
-            for layer in range(args.freezeD):
-                requires_grad(discriminator, False, target_layer=f'convs.{discriminator.log_size-2-layer}')
-            requires_grad(discriminator, False, target_layer=f'final_') #final_conv, final_linear
+            #-------------------------
+            # Update Generator
+            #-------------------------
 
-        elif args.freezeG > 0 :
-            # G
-            for layer in range(args.freezeG):
-                requires_grad(generator, True, target_layer=f'convs.{generator.num_layers-2-2*layer}')
-                requires_grad(generator, True, target_layer=f'convs.{generator.num_layers-3-2*layer}')
-                requires_grad(generator, True, target_layer=f'to_rgbs.{generator.log_size-3-layer}')
-            # D
-            requires_grad(discriminator, False)
+            # Freeze !!!
+            if args.freezeG > 0 and args.freezeD > 0:
+                # G
+                for layer in range(args.freezeG):
+                    requires_grad(generator, True, target_layer=f'convs.{generator.num_layers-2-2*layer}')
+                    requires_grad(generator, True, target_layer=f'convs.{generator.num_layers-3-2*layer}')
+                    requires_grad(generator, True, target_layer=f'to_rgbs.{generator.log_size-3-layer}')
+                # D
+                for layer in range(args.freezeD):
+                    requires_grad(discriminator, False, target_layer=f'convs.{discriminator.log_size-2-layer}')
+                requires_grad(discriminator, False, target_layer=f'final_') #final_conv, final_linear
 
-        elif args.freezeD > 0 :
-            # G
-            requires_grad(generator, True)
-            # D
-            for layer in range(args.freezeD):
-                requires_grad(discriminator, False, target_layer=f'convs.{discriminator.log_size-2-layer}')
-            requires_grad(discriminator, False, target_layer=f'final_') #final_conv, final_linear
+            elif args.freezeG > 0 :
+                # G
+                for layer in range(args.freezeG):
+                    requires_grad(generator, True, target_layer=f'convs.{generator.num_layers-2-2*layer}')
+                    requires_grad(generator, True, target_layer=f'convs.{generator.num_layers-3-2*layer}')
+                    requires_grad(generator, True, target_layer=f'to_rgbs.{generator.log_size-3-layer}')
+                # D
+                requires_grad(discriminator, False)
 
-
-        else :
-            # G
-            requires_grad(generator, True)
-            # D
-            requires_grad(discriminator, False)
-
-        #--------------------------
+            elif args.freezeD > 0 :
+                # G
+                requires_grad(generator, True)
+                # D
+                for layer in range(args.freezeD):
+                    requires_grad(discriminator, False, target_layer=f'convs.{discriminator.log_size-2-layer}')
+                requires_grad(discriminator, False, target_layer=f'final_') #final_conv, final_linear
 
 
-        noise = mixing_noise(args.batch, args.latent, args.mixing, device)
+            else :
+                # G
+                requires_grad(generator, True)
+                # D
+                requires_grad(discriminator, False)
 
-        if args.freezeStyle >= 0:            
-            fake_img, latent = generator_source(noise, return_latents=True)
-            fake_img, _ = generator(noise, inject_index=args.freezeStyle, put_latent = latent)
-        else:
-            fake_img, _ = generator(noise)
-
-        if args.augment:
-            fake_img, _ = augment(fake_img, ada_aug_p)
-
-        fake_pred = discriminator(fake_img)
-        g_loss = g_nonsaturating_loss(fake_pred)
-
-        loss_dict["g"] = g_loss
+            #--------------------------
 
 
-        if args.structure_loss >= 0:
-            for layer in range(args.structure_loss):
-                _, latent_med_sor = generator_source(noise, swap=True, swap_layer_num=layer+1)
-                _, latent_med_tar = generator(noise, swap=True, swap_layer_num=layer+1)
-                g_loss = g_loss + F.mse_loss(latent_med_tar, latent_med_sor)
+            noise = mixing_noise(args.batch, args.latent, args.mixing, device)
 
-                
-        generator.zero_grad()
-        g_loss.backward()
-        g_optim.step()
+            if args.freezeStyle >= 0:            
+                fake_img, latent = generator_source(noise, return_latents=True)
+                fake_img, _ = generator(noise, inject_index=args.freezeStyle, put_latent = latent)
+            else:
+                fake_img, _ = generator(noise)
 
-        g_regularize = i % args.g_reg_every == 0
+            if args.augment:
+                fake_img, _ = augment(fake_img, ada_aug_p)
 
-        if args.freezeG < 0 and g_regularize:
-            
-            path_batch_size = max(1, args.batch // args.path_batch_shrink)
-            noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
-            fake_img, latents = generator(noise, return_latents=True)
+            fake_pred = discriminator(fake_img)
+            g_loss = g_nonsaturating_loss(fake_pred)
 
-            path_loss, mean_path_length, path_lengths = g_path_regularize(
-                fake_img, latents, mean_path_length
-            )
+            loss_dict["g"] = g_loss
+
+
+            if args.structure_loss >= 0:
+                for layer in range(args.structure_loss):
+                    _, latent_med_sor = generator_source(noise, swap=True, swap_layer_num=layer+1)
+                    _, latent_med_tar = generator(noise, swap=True, swap_layer_num=layer+1)
+                    g_loss = g_loss + F.mse_loss(latent_med_tar, latent_med_sor)
+
 
             generator.zero_grad()
-            weighted_path_loss = args.path_regularize * args.g_reg_every * path_loss
-
-            if args.path_batch_shrink:
-                weighted_path_loss += 0 * fake_img[0, 0, 0, 0]
-
-            weighted_path_loss.backward()
-
+            g_loss.backward()
             g_optim.step()
 
-            mean_path_length_avg = (
-                reduce_sum(mean_path_length).item() / get_world_size()
-            )
+            g_regularize = i % args.g_reg_every == 0
 
-        loss_dict["path"] = path_loss
-        loss_dict["path_length"] = path_lengths.mean()
+            if args.freezeG < 0 and g_regularize:
 
-        accumulate(g_ema, g_module, accum)
+                path_batch_size = max(1, args.batch // args.path_batch_shrink)
+                noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
+                fake_img, latents = generator(noise, return_latents=True)
 
-        loss_reduced = reduce_loss_dict(loss_dict)
-
-        d_loss_val = loss_reduced["d"].mean().item()
-        g_loss_val = loss_reduced["g"].mean().item()
-        r1_val = loss_reduced["r1"].mean().item()
-        path_loss_val = loss_reduced["path"].mean().item()
-        real_score_val = loss_reduced["real_score"].mean().item()
-        fake_score_val = loss_reduced["fake_score"].mean().item()
-        path_length_val = loss_reduced["path_length"].mean().item()
-
-        if get_rank() == 0:
-            # print('Get-rank is zero')
-            pbar.set_description(
-                (
-                    "Training Progress"
-                    f"d: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; "
-                    f"path: {path_loss_val:.4f}; mean path: {mean_path_length_avg:.4f}; "
-                    f"augment: {ada_aug_p:.4f}"
-                )
-            )
-
-            # nsml.report(summary=True, step=i, G_loss=g_loss_val, D_loss=d_loss_val, R1_loss=r1_val, Path_loss=path_loss_val, mean_path=mean_path_length_avg, augment=ada_aug_p)
-
-            if wandb and args.wandb:
-                wandb.log(
-                    {
-                        "Generator": g_loss_val,
-                        "Discriminator": d_loss_val,
-                        "Augment": ada_aug_p,
-                        "Rt": r_t_stat,
-                        "R1": r1_val,
-                        "Path Length Regularization": path_loss_val,
-                        "Mean Path Length": mean_path_length,
-                        "Real Score": real_score_val,
-                        "Fake Score": fake_score_val,
-                        "Path Length": path_length_val,
-                    }
+                path_loss, mean_path_length, path_lengths = g_path_regularize(
+                    fake_img, latents, mean_path_length
                 )
 
-            # if i % 100 == 0:
-            #     with torch.no_grad():
-            #         g_ema.eval()
-            #         sample, _ = g_ema([sample_z])
-            #         utils.save_image(
-            #             sample,
-            #             f"{save_dir}/{str(i).zfill(6)}.png",
-            #             nrow=int(args.n_sample ** 0.5),
-            #             normalize=True,
-            #             range=(-1, 1),
-            #         )
+                generator.zero_grad()
+                weighted_path_loss = args.path_regularize * args.g_reg_every * path_loss
 
-            if i % 2000 == 0:
-                torch.save(
-                    {
-                        "g": g_module.state_dict(),
-                        "d": d_module.state_dict(),
-                        "g_ema": g_ema.state_dict(),
-                        "g_optim": g_optim.state_dict(),
-                        "d_optim": d_optim.state_dict(),
-                        "args": args,
-                        "ada_aug_p": ada_aug_p,
-                    },
-                    f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt",
+                if args.path_batch_shrink:
+                    weighted_path_loss += 0 * fake_img[0, 0, 0, 0]
+
+                weighted_path_loss.backward()
+
+                g_optim.step()
+
+                mean_path_length_avg = (
+                    reduce_sum(mean_path_length).item() / get_world_size()
                 )
-            pbar.update(1)
+
+            loss_dict["path"] = path_loss
+            loss_dict["path_length"] = path_lengths.mean()
+
+            accumulate(g_ema, g_module, accum)
+
+            loss_reduced = reduce_loss_dict(loss_dict)
+
+            d_loss_val = loss_reduced["d"].mean().item()
+            g_loss_val = loss_reduced["g"].mean().item()
+            r1_val = loss_reduced["r1"].mean().item()
+            path_loss_val = loss_reduced["path"].mean().item()
+            real_score_val = loss_reduced["real_score"].mean().item()
+            fake_score_val = loss_reduced["fake_score"].mean().item()
+            path_length_val = loss_reduced["path_length"].mean().item()
+
+            if get_rank() == 0:
+#                 pbar.set_description(
+#                     (
+#                         f"d: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; "
+#                         f"path: {path_loss_val:.4f}; mean path: {mean_path_length_avg:.4f}; "
+#                         f"augment: {ada_aug_p:.4f}"
+#                     )
+#                 )
+                
+
+    #             pbar.set_postfix(
+    #                 d=d_loss_val, g=g_loss_val, r1=r1_val,
+    #                 path=path_loss_val, mean_path=mean_path_length_avg,
+    #                 augment=ada_aug_p
+    #             )
+#                 pbar.set_postfix({
+#                                     "d": f"{d_loss_val:.4f}",
+#                                     "g": f"{g_loss_val:.4f}",
+#                                     "r1": f"{r1_val:.4f}",
+#                                     "path": f"{path_loss_val:.4f}",
+#                                     "mean path": f"{mean_path_length_avg:.4f}",
+#                                     "augment": f"{ada_aug_p:.4f}"
+#                                 })
+    #             pbar.set_postfix({
+    #                                 "d": f"{d_loss_val:.2f}",
+    #                                 "g": f"{g_loss_val:.2f}",
+    #                                 "r1": f"{r1_val:.2f}",
+    #                                 "path": f"{path_loss_val:.2f}",
+    #                                 "mean": f"{mean_path_length_avg:.2f}",
+    #                                 "aug": f"{ada_aug_p:.2f}"
+    #                             }, refresh=False)
+
+    #             pbar.set_postfix_str(f"d={d_loss_val:.2f}, g={g_loss_val:.2f}")
+    #             pbar.set_postfix_str(
+    #                                     f"d={d_loss_val:.4f}, g={g_loss_val:.4f}, r1={r1_val:.4f}, path={path_loss_val:.4f}, "
+    #                                     f"mean path={mean_path_length_avg:.4f}, augment={ada_aug_p:.4f}"
+    #                                 )
+
+                # nsml.report(summary=True, step=i, G_loss=g_loss_val, D_loss=d_loss_val, R1_loss=r1_val, Path_loss=path_loss_val, mean_path=mean_path_length_avg, augment=ada_aug_p)
+                print(
+                        f"d: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; "
+                        f"path: {path_loss_val:.4f}; mean path: {mean_path_length_avg:.4f}; "
+                        f"augment: {ada_aug_p:.4f}", 
+                        end="\r"
+                     )
+                if wandb and args.wandb:
+                    wandb.log(
+                        {
+                            "Generator": g_loss_val,
+                            "Discriminator": d_loss_val,
+                            "Augment": ada_aug_p,
+                            "Rt": r_t_stat,
+                            "R1": r1_val,
+                            "Path Length Regularization": path_loss_val,
+                            "Mean Path Length": mean_path_length,
+                            "Real Score": real_score_val,
+                            "Fake Score": fake_score_val,
+                            "Path Length": path_length_val,
+                        }
+                    )
+
+                # if i % 100 == 0:
+                #     with torch.no_grad():
+                #         g_ema.eval()
+                #         sample, _ = g_ema([sample_z])
+                #         utils.save_image(
+                #             sample,
+                #             f"{save_dir}/{str(i).zfill(6)}.png",
+                #             nrow=int(args.n_sample ** 0.5),
+                #             normalize=True,
+                #             range=(-1, 1),
+                #         )
+
+                if i % 2000 == 0:
+                    torch.save(
+                        {
+                            "g": g_module.state_dict(),
+                            "d": d_module.state_dict(),
+                            "g_ema": g_ema.state_dict(),
+                            "g_optim": g_optim.state_dict(),
+                            "d_optim": d_optim.state_dict(),
+                            "args": args,
+                            "ada_aug_p": ada_aug_p,
+                        },
+                        f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt",
+                    )
+                pbar.update(1)
 
 
 
 if __name__ == "__main__":
     device = "cuda"
-
+    # print("This is the modified train...")
     parser = argparse.ArgumentParser(description="StyleGAN2 trainer")
 
     parser.add_argument("--path", type=str, help="path to the lmdb dataset")
     parser.add_argument('--arch', type=str, default='stylegan2', help='model architectures (stylegan2 | swagan)')
     parser.add_argument(
-        "--iter", type=int, default=800000, help="total training iterations"
+        "--iter", type=int, default=8, help="total training iterations"
     )
     parser.add_argument(
         "--batch", type=int, default=16, help="batch sizes for each gpus"
