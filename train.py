@@ -394,7 +394,7 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
         path_length_val = loss_reduced["path_length"].mean().item()
 
         if get_rank() == 0:
-            print('Get-rank is zero')
+            # print('Get-rank is zero')
             pbar.set_description(
                 (
                     f"d: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; "
