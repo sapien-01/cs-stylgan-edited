@@ -129,8 +129,9 @@ def set_grad_none(model, targets):
 def train(args, loader, generator, generator_source, discriminator, g_optim, d_optim, g_ema, device):
 
     save_dir = "expr"
-    os.makedirs(save_dir, 0o777, exist_ok=True)
-    os.maktrain_file_contenedirs(save_dir + "/checkpoints", 0o777, exist_ok=True)
+    # os.makedirs(save_dir, 0o777, exist_ok=True)
+    # os.maktrain_file_contenedirs(save_dir + "/checkpoints", 0o777, exist_ok=True)
+    os.makedirs(save_dir + "/checkpoints", mode=0o777, exist_ok=True)
 
     loader = sample_data(loader)
 
