@@ -10,7 +10,7 @@ from torch.nn import functional as F
 from torch.utils import data
 import torch.distributed as dist
 from torchvision import transforms, utils
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 try:
     import wandb
