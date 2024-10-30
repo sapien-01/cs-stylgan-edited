@@ -250,130 +250,131 @@ if __name__ == "__main__":
     else:
         optimizer = optim.Adam([latent_in] + noises, lr=args.lr)
 
-    pbar = tqdm(range(args.step))
+    # pbar = tqdm(range(args.step))
     latent_path = []
     proj_images = []
 
     # Training !
+    num_steps = int(args.step)
+    with tqdm(total=num_steps, desc="Projecting") as pbar:
+        for i in range(num_steps):
 
-    for i in pbar:
+            t = i / args.step
+            lr = get_lr(t, args.lr)
 
-        t = i / args.step
-        lr = get_lr(t, args.lr)
+            optimizer.param_groups[0]["lr"] = lr
 
-        optimizer.param_groups[0]["lr"] = lr
+            # fake image
+            if args.e_ckpt is not None :
+                img_gen, _ = g_ema([latent_in], input_is_latent=True,
+                                    truncation=args.truncation, truncation_latent = trunc,
+                                    randomize_noise=False)
+            else:
+                noise_strength = latent_std * args.noise * max(0, 1 - t / args.noise_ramp) ** 2
+                latent_n = latent_noise(latent_in, noise_strength.item())
 
-        # fake image
+                img_gen, _ = g_ema([latent_n], input_is_latent=True, noise=noises)
+            
+            #
+            batch, channel, height, width = img_gen.shape
+            if height > 256:
+                factor = height // 256
+
+                img_gen = img_gen.reshape(
+                    batch, channel, height // factor, factor, width // factor, factor
+                )
+                img_gen = img_gen.mean([3, 5])
+            
+
+            # latent
+            if args.e_ckpt is not None :
+                latent_hat = encoder(img_gen)
+
+
+            # Loss
+            p_loss = percept(img_gen, imgs).sum()        
+            r_loss = torch.mean((img_gen - imgs) ** 2)       
+            mse_loss = F.mse_loss(img_gen, imgs)
+            
+            n_loss = noise_regularize(noises)
+
+            if args.e_ckpt is not None :
+                style_loss = F.mse_loss(latent_hat, latent_init)
+                loss = args.vgg * p_loss + r_loss + style_loss + args.mse * mse_loss
+            else :
+                style_loss = 0.0
+                loss = args.vgg * p_loss + r_loss + args.mse * mse_loss + args.noise_regularize * n_loss 
+
+
+            # update
+            optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            optimizer.step()
+
+            noise_normalize_(noises)
+
+            if (i + 1) % 100 == 0:
+                latent_path.append(latent_in.detach().clone())
+                proj_images.append(img_gen)
+
+            pbar.set_description(
+                (
+                    f"perceptual: {p_loss.item():.4f}; noise regularize: {n_loss.item():.4f}; "
+                    f"reconstruction: {r_loss:.4f}; "
+                    f"mse_img: {mse_loss.item():.4f}; mse_latent: {style_loss:.4f}; lr: {lr:.4f} |"
+                )
+            )
+
+        # =============================================
+
+        # -----------------------------------
+        # Save image, latent, noise
+        # -----------------------------------
+
+
+        # final generated image
         if args.e_ckpt is not None :
-            img_gen, _ = g_ema([latent_in], input_is_latent=True,
+            img_gen, _ = g_ema([latent_path[-1]], input_is_latent=True,
                                 truncation=args.truncation, truncation_latent = trunc,
-                                randomize_noise=False)
+                                randomize_noise=None)
         else:
-            noise_strength = latent_std * args.noise * max(0, 1 - t / args.noise_ramp) ** 2
-            latent_n = latent_noise(latent_in, noise_strength.item())
-
-            img_gen, _ = g_ema([latent_n], input_is_latent=True, noise=noises)
-        
-        #
-        batch, channel, height, width = img_gen.shape
-        if height > 256:
-            factor = height // 256
-
-            img_gen = img_gen.reshape(
-                batch, channel, height // factor, factor, width // factor, factor
-            )
-            img_gen = img_gen.mean([3, 5])
-        
-
-        # latent
-        if args.e_ckpt is not None :
-            latent_hat = encoder(img_gen)
+            img_gen, _ = g_ema([latent_path[-1]], input_is_latent=True, noise=noises)
 
 
-        # Loss
-        p_loss = percept(img_gen, imgs).sum()        
-        r_loss = torch.mean((img_gen - imgs) ** 2)       
-        mse_loss = F.mse_loss(img_gen, imgs)
-        
-        n_loss = noise_regularize(noises)
-
-        if args.e_ckpt is not None :
-            style_loss = F.mse_loss(latent_hat, latent_init)
-            loss = args.vgg * p_loss + r_loss + style_loss + args.mse * mse_loss
-        else :
-            style_loss = 0.0
-            loss = args.vgg * p_loss + r_loss + args.mse * mse_loss + args.noise_regularize * n_loss 
+        filename = f"{args.project_name}.pt"
+        img_ar = make_image(img_gen)
 
 
-        # update
-        optimizer.zero_grad()
-        loss.backward(retain_graph=True)
-        optimizer.step()
-
-        noise_normalize_(noises)
-
-        if (i + 1) % 100 == 0:
-            latent_path.append(latent_in.detach().clone())
-            proj_images.append(img_gen)
-
-        pbar.set_description(
-            (
-                f"perceptual: {p_loss.item():.4f}; noise regularize: {n_loss.item():.4f}; "
-                f"reconstruction: {r_loss:.4f}; "
-                f"mse_img: {mse_loss.item():.4f}; mse_latent: {style_loss:.4f}; lr: {lr:.4f} |"
-            )
-        )
-
-    # =============================================
-
-    # -----------------------------------
-    # Save image, latent, noise
-    # -----------------------------------
+        images = []
+        for i in range(len(proj_images)):
+            img = proj_images[i][0]
+            for k in range(1, len(proj_images[0])): 
+                # img : torch.Size([3, 256*num_img, 256])
+                img = torch.cat([img, proj_images[i][k]], dim =1) 
+            images.append(img) 
 
 
-    # final generated image
-    if args.e_ckpt is not None :
-        img_gen, _ = g_ema([latent_path[-1]], input_is_latent=True,
-                            truncation=args.truncation, truncation_latent = trunc,
-                            randomize_noise=None)
-    else:
-        img_gen, _ = g_ema([latent_path[-1]], input_is_latent=True, noise=noises)
+        result_file = {}
+        for i, input_name in enumerate(args.files):
+            noise_single = []
+            for noise in noises:
+                noise_single.append(noise)
 
+            name = os.path.splitext(os.path.basename(input_name))[0]
+            result_file[name] = {
+                "r_img": tensor2image(imgs[i]),
+                "f_img": tensor2image(img_gen[i]),
+                "p_img" : tensor2image(torch.cat(images, dim=2)),
+                "latent": latent_in[i].unsqueeze(0),
+                "noise": noise_single,
+                "args" : args,
+            }
 
-    filename = f"{args.project_name}.pt"
-    img_ar = make_image(img_gen)
+            img_name = os.path.splitext(os.path.basename(input_name))[0] + "-project.png"
+            pil_img = Image.fromarray(img_ar[i])
+            pil_img.save(img_name)
 
-
-    images = []
-    for i in range(len(proj_images)):
-        img = proj_images[i][0]
-        for k in range(1, len(proj_images[0])): 
-            # img : torch.Size([3, 256*num_img, 256])
-            img = torch.cat([img, proj_images[i][k]], dim =1) 
-        images.append(img) 
-
-
-    result_file = {}
-    for i, input_name in enumerate(args.files):
-        noise_single = []
-        for noise in noises:
-            noise_single.append(noise)
-
-        name = os.path.splitext(os.path.basename(input_name))[0]
-        result_file[name] = {
-            "r_img": tensor2image(imgs[i]),
-            "f_img": tensor2image(img_gen[i]),
-            "p_img" : tensor2image(torch.cat(images, dim=2)),
-            "latent": latent_in[i].unsqueeze(0),
-            "noise": noise_single,
-            "args" : args,
-        }
-
-        img_name = os.path.splitext(os.path.basename(input_name))[0] + "-project.png"
-        pil_img = Image.fromarray(img_ar[i])
-        pil_img.save(img_name)
-
-        img_name = os.path.splitext(os.path.basename(input_name))[0] + "-project-interpolation.png"
-        save_image(tensor2image(torch.cat(images, dim=2)), size = 20, out=img_name)
+            img_name = os.path.splitext(os.path.basename(input_name))[0] + "-project-interpolation.png"
+            save_image(tensor2image(torch.cat(images, dim=2)), size = 20, out=img_name)
 
     torch.save(result_file, filename)
