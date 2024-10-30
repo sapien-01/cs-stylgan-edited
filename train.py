@@ -128,7 +128,7 @@ def set_grad_none(model, targets):
 
 def train(args, loader, generator, generator_source, discriminator, g_optim, d_optim, g_ema, device):
 
-    save_dir = "expr"
+    save_dir = "/kaggle/working/cs-stylgan-edited/expr"
     os.makedirs(save_dir + "/checkpoints", mode=0o777, exist_ok=True)
 
     loader = sample_data(loader)
@@ -397,13 +397,6 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
             path_length_val = loss_reduced["path_length"].mean().item()
 
             if get_rank() == 0:
-#                 pbar.set_description(
-#                     (
-#                         f"d: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; "
-#                         f"path: {path_loss_val:.4f}; mean path: {mean_path_length_avg:.4f}; "
-#                         f"augment: {ada_aug_p:.4f}"
-#                     )
-#                 )
                 pbar.set_postfix({
                                 "d": f"{d_loss_val:.4f}",
                                 "g": f"{g_loss_val:.4f}",
@@ -428,19 +421,20 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
                         }
                     )
 
-                # if i % 100 == 0:
-                #     with torch.no_grad():
-                #         g_ema.eval()
-                #         sample, _ = g_ema([sample_z])
-                #         utils.save_image(
-                #             sample,
-                #             f"{save_dir}/{str(i).zfill(6)}.png",
-                #             nrow=int(args.n_sample ** 0.5),
-                #             normalize=True,
-                #             range=(-1, 1),
-                #         )
+#                 if i % 5 == 0:
+#                     with torch.no_grad():
+#                         g_ema.eval()
+#                         sample, _ = g_ema([sample_z])
+#                         utils.save_image(
+#                             sample,
+#                             f"{save_dir}/{str(i).zfill(6)}.png",
+#                             nrow=int(args.n_sample ** 0.5),
+#                             normalize=True,
+#                             range=(-1, 1),
+#                         )
 
                 if i % 10 == 0:
+                    ckpt_name = f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt"
                     torch.save(
                         {
                             "g": g_module.state_dict(),
@@ -451,16 +445,16 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
                             "args": args,
                             "ada_aug_p": ada_aug_p,
                         },
-                        f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt",
+                        ckpt_name,
                     )
+                    print(f"\\nCheckpoint saved to {ckpt_name}")
                 pbar.update(1)
-#                 print(f'd: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; path: {path_loss_val:.4f}; mean path: {mean_path_length_avg:.4f}; augment: {ada_aug_p:.4f}', end=" ")
 
 
 
 if __name__ == "__main__":
     device = "cuda"
-    # print("This is the modified train...")
+#     print("This is the modified train...")
     parser = argparse.ArgumentParser(description="StyleGAN2 trainer")
 
     parser.add_argument("--path", type=str, help="path to the lmdb dataset")
