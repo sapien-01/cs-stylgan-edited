@@ -463,9 +463,9 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
                         ckpt_name,
                     )
                     if os.path.exists(ckpt_name):
-                        print(f"\nCheckpoint saved successfully at {ckpt_name}")
+                        print(f"Checkpoint saved successfully at {ckpt_name}\\n")
                     else:
-                        print("\nCheckpoint was not saved successfully.")
+                        print("\nCheckpoint was not saved successfully.\\n")
                 pbar.update(1)
 
 
