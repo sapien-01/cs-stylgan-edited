@@ -129,8 +129,7 @@ def set_grad_none(model, targets):
 def train(args, loader, generator, generator_source, discriminator, g_optim, d_optim, g_ema, device):
 
     save_dir = "/kaggle/working/"
-    checkpoints_dir = os.path.join(save_dir, "checkpoints")
-    os.makedirs(checkpoints_dir, mode=0o777, exist_ok=True)
+    os.makedirs(save_dir + "/checkpoints", mode=0o777, exist_ok=True)
 
     loader = sample_data(loader)
 
@@ -435,7 +434,11 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
 #                         )
 
                 if i % 50 == 0:
-                    ckpt_name = f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt"
+                    
+#                     ckpt_name = f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt"
+                    save_dir = "/kaggle/output/checkpoints"
+                    os.makedirs(save_dir, exist_ok=True)
+                    ckpt_name = os.path.join(save_dir, f"model_checkpoint_{i}.pt")
                     torch.save(
                         {
                             "g": g_module.state_dict(),
@@ -448,7 +451,10 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
                         },
                         ckpt_name,
                     )
-                    print(f"\\nCheckpoint saved to {ckpt_name}")
+                    if os.path.exists(ckpt_name):
+                        print(f"Checkpoint saved successfully at {ckpt_name}")
+                    else:
+                        print("Checkpoint was not saved successfully.")
                 pbar.update(1)
 
 
