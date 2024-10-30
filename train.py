@@ -427,7 +427,7 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
                     )
 
                     
-                if i % 500 == 0:
+                if (i + 1) % 500 == 0:
                     save_dir = "/kaggle/working/gen-progress"
                     os.makedirs(save_dir, exist_ok=True)
                     img_name = os.path.join(save_dir, f'img-{str(i).zfill(6)}.png')
