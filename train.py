@@ -128,9 +128,7 @@ def set_grad_none(model, targets):
 
 def train(args, loader, generator, generator_source, discriminator, g_optim, d_optim, g_ema, device):
 
-    save_dir = "expr"
-    # os.makedirs(save_dir, 0o777, exist_ok=True)
-    # os.maktrain_file_contenedirs(save_dir + "/checkpoints", 0o777, exist_ok=True)
+    save_dir = "/kaggle/working/"
     os.makedirs(save_dir + "/checkpoints", mode=0o777, exist_ok=True)
 
     loader = sample_data(loader)
@@ -170,7 +168,7 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
     sample_z = torch.randn(args.n_sample, args.latent, device=device)
     
     
-    with tqdm(total=num_iterations, desc="Training Progress") as pbar:
+    with tqdm(total=num_iterations, desc="Training") as pbar:
         for idx in range(num_iterations):
             i = idx + args.start_iter
 
@@ -399,50 +397,14 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
             path_length_val = loss_reduced["path_length"].mean().item()
 
             if get_rank() == 0:
-#                 pbar.set_description(
-#                     (
-#                         f"d: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; "
-#                         f"path: {path_loss_val:.4f}; mean path: {mean_path_length_avg:.4f}; "
-#                         f"augment: {ada_aug_p:.4f}"
-#                     )
-#                 )
-                
+                pbar.set_postfix({
+                                "d": f"{d_loss_val:.4f}",
+                                "g": f"{g_loss_val:.4f}",
+                                "r1": f"{r1_val:.4f}",
+                                "path": f"{path_loss_val:.4f}",
+                                "mean path": f"{mean_path_length_avg:.4f}"
+                            })
 
-    #             pbar.set_postfix(
-    #                 d=d_loss_val, g=g_loss_val, r1=r1_val,
-    #                 path=path_loss_val, mean_path=mean_path_length_avg,
-    #                 augment=ada_aug_p
-    #             )
-#                 pbar.set_postfix({
-#                                     "d": f"{d_loss_val:.4f}",
-#                                     "g": f"{g_loss_val:.4f}",
-#                                     "r1": f"{r1_val:.4f}",
-#                                     "path": f"{path_loss_val:.4f}",
-#                                     "mean path": f"{mean_path_length_avg:.4f}",
-#                                     "augment": f"{ada_aug_p:.4f}"
-#                                 })
-    #             pbar.set_postfix({
-    #                                 "d": f"{d_loss_val:.2f}",
-    #                                 "g": f"{g_loss_val:.2f}",
-    #                                 "r1": f"{r1_val:.2f}",
-    #                                 "path": f"{path_loss_val:.2f}",
-    #                                 "mean": f"{mean_path_length_avg:.2f}",
-    #                                 "aug": f"{ada_aug_p:.2f}"
-    #                             }, refresh=False)
-
-    #             pbar.set_postfix_str(f"d={d_loss_val:.2f}, g={g_loss_val:.2f}")
-    #             pbar.set_postfix_str(
-    #                                     f"d={d_loss_val:.4f}, g={g_loss_val:.4f}, r1={r1_val:.4f}, path={path_loss_val:.4f}, "
-    #                                     f"mean path={mean_path_length_avg:.4f}, augment={ada_aug_p:.4f}"
-    #                                 )
-
-                # nsml.report(summary=True, step=i, G_loss=g_loss_val, D_loss=d_loss_val, R1_loss=r1_val, Path_loss=path_loss_val, mean_path=mean_path_length_avg, augment=ada_aug_p)
-                print(
-                        f"d: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; "
-                        f"path: {path_loss_val:.4f}; mean path: {mean_path_length_avg:.4f}; "
-                        f"augment: {ada_aug_p:.4f}", 
-                        end="\r"
-                     )
                 if wandb and args.wandb:
                     wandb.log(
                         {
@@ -459,19 +421,24 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
                         }
                     )
 
-                # if i % 100 == 0:
-                #     with torch.no_grad():
-                #         g_ema.eval()
-                #         sample, _ = g_ema([sample_z])
-                #         utils.save_image(
-                #             sample,
-                #             f"{save_dir}/{str(i).zfill(6)}.png",
-                #             nrow=int(args.n_sample ** 0.5),
-                #             normalize=True,
-                #             range=(-1, 1),
-                #         )
+#                 if i % 5 == 0:
+#                     with torch.no_grad():
+#                         g_ema.eval()
+#                         sample, _ = g_ema([sample_z])
+#                         utils.save_image(
+#                             sample,
+#                             f"{save_dir}/{str(i).zfill(6)}.png",
+#                             nrow=int(args.n_sample ** 0.5),
+#                             normalize=True,
+#                             range=(-1, 1),
+#                         )
 
-                if i % 2000 == 0:
+                if i % 50 == 0:
+                    
+#                     ckpt_name = f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt"
+                    save_dir = "/kaggle/output/checkpoints"
+                    os.makedirs(save_dir, exist_ok=True)
+                    ckpt_name = os.path.join(save_dir, f"model_checkpoint_{i}.pt")
                     torch.save(
                         {
                             "g": g_module.state_dict(),
@@ -482,21 +449,25 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
                             "args": args,
                             "ada_aug_p": ada_aug_p,
                         },
-                        f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt",
+                        ckpt_name,
                     )
+                    if os.path.exists(ckpt_name):
+                        print(f"\\nCheckpoint saved successfully at {ckpt_name}")
+                    else:
+                        print("\\nCheckpoint was not saved successfully.")
                 pbar.update(1)
 
 
 
 if __name__ == "__main__":
     device = "cuda"
-    # print("This is the modified train...")
+#     print("This is the modified train...")
     parser = argparse.ArgumentParser(description="StyleGAN2 trainer")
 
     parser.add_argument("--path", type=str, help="path to the lmdb dataset")
     parser.add_argument('--arch', type=str, default='stylegan2', help='model architectures (stylegan2 | swagan)')
     parser.add_argument(
-        "--iter", type=int, default=8, help="total training iterations"
+        "--iter", type=int, default=80, help="total training iterations"
     )
     parser.add_argument(
         "--batch", type=int, default=16, help="batch sizes for each gpus"
