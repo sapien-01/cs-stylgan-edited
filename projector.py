@@ -316,14 +316,23 @@ if __name__ == "__main__":
             if (i + 1) % 100 == 0:
                 latent_path.append(latent_in.detach().clone())
                 proj_images.append(img_gen)
-
-            pbar.set_description(
-                (
-                    f"perceptual: {p_loss.item():.4f}; noise regularize: {n_loss.item():.4f}; "
-                    f"reconstruction: {r_loss:.4f}; "
-                    f"mse_img: {mse_loss.item():.4f}; mse_latent: {style_loss:.4f}; lr: {lr:.4f} |"
+                print(
+                    (
+                        f"perceptual: {p_loss.item():.4f}; noise regularize: {n_loss.item():.4f}; "
+                        f"reconstruction: {r_loss:.4f}; "
+                        f"mse_img: {mse_loss.item():.4f}; mse_latent: {style_loss:.4f}; lr: {lr:.4f} |"
+                    )
                 )
-            )
+
+            # pbar.set_description(
+            #     (
+            #         f"perceptual: {p_loss.item():.4f}; noise regularize: {n_loss.item():.4f}; "
+            #         f"reconstruction: {r_loss:.4f}; "
+            #         f"mse_img: {mse_loss.item():.4f}; mse_latent: {style_loss:.4f}; lr: {lr:.4f} |"
+            #     )
+            # )
+            
+
 
         # =============================================
 

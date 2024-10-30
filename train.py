@@ -398,13 +398,17 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
             path_length_val = loss_reduced["path_length"].mean().item()
 
             if get_rank() == 0:
-                pbar.set_postfix({
-                                "d": f"{d_loss_val:.4f}",
-                                "g": f"{g_loss_val:.4f}",
-                                "r1": f"{r1_val:.4f}",
-                                "path": f"{path_loss_val:.4f}",
-                                "mean path": f"{mean_path_length_avg:.4f}"
-                            })
+                
+                if i % 25:
+                    print(
+                            f"\nd: {d_loss_val:.4f}, "
+                            f"g: {g_loss_val:.4f}, "
+                            f"r1: {r1_val:.4f}, "
+                            f"path: {path_loss_val:.4f}, "
+                            f"mean path: {mean_path_length_avg:.4f}"
+                        )
+
+
 
                 if wandb and args.wandb:
                     wandb.log(
@@ -435,7 +439,6 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
 #                         )
 
                 if i % 50 == 0:
-                    
 #                     ckpt_name = f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt"
                     save_dir = "/kaggle/output/checkpoints"
                     os.makedirs(save_dir, exist_ok=True)
@@ -453,9 +456,9 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
                         ckpt_name,
                     )
                     if os.path.exists(ckpt_name):
-                        print(f"\\nCheckpoint saved successfully at {ckpt_name}")
+                        print(f"\nCheckpoint saved successfully at {ckpt_name}")
                     else:
-                        print("\\nCheckpoint was not saved successfully.")
+                        print("\nCheckpoint was not saved successfully.")
                 pbar.update(1)
 
 
