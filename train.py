@@ -128,7 +128,7 @@ def set_grad_none(model, targets):
 
 def train(args, loader, generator, generator_source, discriminator, g_optim, d_optim, g_ema, device):
 
-    save_dir = "/kaggle/working/cs-stylgan-edited/expr"
+    save_dir = "/kaggle/working/"
     os.makedirs(save_dir + "/checkpoints", mode=0o777, exist_ok=True)
 
     loader = sample_data(loader)
@@ -433,7 +433,7 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
 #                             range=(-1, 1),
 #                         )
 
-                if i % 10 == 0:
+                if i % 50 == 0:
                     ckpt_name = f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt"
                     torch.save(
                         {
