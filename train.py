@@ -399,7 +399,7 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
 
             if get_rank() == 0:
                 
-                if i % 25:
+                if i % 1000 == 0:
                     print(
                             f"\nd: {d_loss_val:.4f}, "
                             f"g: {g_loss_val:.4f}, "
