@@ -426,21 +426,28 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
                         }
                     )
 
-#                 if i % 5 == 0:
-#                     with torch.no_grad():
-#                         g_ema.eval()
-#                         sample, _ = g_ema([sample_z])
-#                         utils.save_image(
-#                             sample,
-#                             f"{save_dir}/{str(i).zfill(6)}.png",
-#                             nrow=int(args.n_sample ** 0.5),
-#                             normalize=True,
-#                             range=(-1, 1),
-#                         )
+                    
+                if i % 500 == 0:
+                    save_dir = "/kaggle/working/gen-progress"
+                    os.makedirs(save_dir, exist_ok=True)
+                    img_name = os.path.join(save_dir, f'img-{str(i).zfill(6)}.png')
+                    with torch.no_grad():
+                        g_ema.eval()
+                        sample, _ = g_ema([sample_z])
+                        utils.save_image(
+                            sample,
+                            img_name,
+                            nrow=int(args.n_sample ** 0.5),
+                            normalize=True,
+                            value_range=(-1, 1),
+                        )
 
-                if i % 50 == 0:
-#                     ckpt_name = f"{save_dir}/checkpoints/{str(i).zfill(6)}.pt"
-                    save_dir = "/kaggle/output/checkpoints"
+                    if os.path.exists(img_name):
+                        print(f"\nImage saved successfully at {img_name}")
+                    else:
+                        print("\nImage was not saved successfully.")
+
+                    save_dir = "/kaggle/working/checkpoints"
                     os.makedirs(save_dir, exist_ok=True)
                     ckpt_name = os.path.join(save_dir, f"model_checkpoint_{i}.pt")
                     torch.save(
