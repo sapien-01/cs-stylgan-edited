@@ -669,7 +669,7 @@ if __name__ == "__main__":
         try:
             # ckpt_name = os.path.basename(args.ckpt)
             # args.start_iter = int(os.path.splitext(ckpt_name)[0])
-            args.start_iter = (os.path.split('_')[-1].split('.')[0])
+            args.start_iter = int(os.path.split('_')[-1].split('.')[0])
             # print(args.start_iter)
 
         except ValueError:
