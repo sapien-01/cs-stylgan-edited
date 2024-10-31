@@ -169,7 +169,7 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
     sample_z = torch.randn(args.n_sample, args.latent, device=device)
     
     
-    with tqdm(total=num_iterations, desc="Training") as pbar:
+    with tqdm(total=num_iterations, initial=args.start_iter, desc="Training") as pbar:
         for idx in range(num_iterations):
             i = idx + args.start_iter
 
@@ -597,7 +597,7 @@ if __name__ == "__main__":
         action="store_true",
         help="freezeFC",
         default=False
-    ) 
+    )
     args = parser.parse_args()
 
     n_gpu = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
@@ -667,8 +667,10 @@ if __name__ == "__main__":
         ckpt = torch.load(args.ckpt, map_location=lambda storage, loc: storage)
 
         try:
-            ckpt_name = os.path.basename(args.ckpt)
-            args.start_iter = int(os.path.splitext(ckpt_name)[0])
+            # ckpt_name = os.path.basename(args.ckpt)
+            # args.start_iter = int(os.path.splitext(ckpt_name)[0])
+            args.start_iter = (os.path.split('_')[-1].split('.')[0])
+            # print(args.start_iter)
 
         except ValueError:
             pass
