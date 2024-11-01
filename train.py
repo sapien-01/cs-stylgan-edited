@@ -134,7 +134,7 @@ def train(args, loader, generator, generator_source, discriminator, g_optim, d_o
 
     loader = sample_data(loader)
 
-    num_iterations = int(args.iter)
+    num_iterations = int(args.iter) + int(args.start_iter)
 #     pbar = tqdm(total=num_iterations, desc="Training Progress", leave=True)
 #     pbar = tqdm(total=num_iterations, leave=True, smoothing=0.01)
 
